@@ -1,7 +1,9 @@
 import streamlit as st
 import requests
+import random
+import re
 
-st.set_page_config(page_title="Music & MCQ Dashboard", layout="centered")
+st.set_page_config(page_title="Pure Streamlit MCQ & Singer App", layout="centered")
 
 # --- 1. SINGER THEME BACKGROUND ---
 singer = st.text_input("Enter Singer Name for Theme:", value="Taylor Swift")
@@ -13,13 +15,16 @@ if singer:
         if res.get("results"):
             img = res["results"][0]["artworkUrl100"].replace("100x100bb", "600x600bb")
             
-            # Change colorful background
             st.markdown(
                 f"""
                 <style>
                 .stApp {{
-                    background: linear-gradient(135deg, #2b5876 0%, #4e4376 100%);
+                    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
                     color: white;
+                }}
+                /* Fix text visibility in Streamlit inputs */
+                .stTextArea textarea {{
+                    color: #000000 !important;
                 }}
                 </style>
                 """,
@@ -32,35 +37,57 @@ if singer:
             with col2:
                 st.subheader(f"🎵 Theme: {singer.title()}")
                 st.write("**Top Songs:** " + ", ".join([t['trackName'] for t in res["results"]]))
-    except:
+    except Exception:
         pass
 
 st.write("---")
 
-# --- 2. MCQ GENERATOR IN FRONT ---
-st.title("📝 MCQ Quiz Generator")
+# --- 2. PURE PYTHON MCQ GENERATOR (NO API NEEDED) ---
+st.title("📝 Text-Based MCQ Generator")
 
 topic_info = st.text_area(
     "Paste topic information/notes here:", 
-    height=150, 
-    placeholder="Paste any study notes or paragraph here..."
+    height=180, 
+    placeholder="Paste your study notes here..."
 )
 
-if st.button("Generate 10 MCQs"):
-    if topic_info.strip():
-        st.success("Here are 10 Questions based on your topic:")
-        
-        # Generates 10 simple MCQs
-        for i in range(1, 11):
-            st.markdown(f"**Question {i}: What is key detail #{i} regarding this topic?**")
-            options = [
-                f"A) Important point from section {i}",
-                f"B) Secondary fact related to topic",
-                f"C) Supporting detail {i}",
-                f"D) None of the above"
-            ]
-            st.radio(f"Select Answer for Q{i}:", options, key=f"mcq_{i}")
-            st.write("")
+if st.button("Generate MCQs from Text"):
+    if not topic_info.strip():
+        st.warning("Please paste some text in the box above first!")
     else:
-        st.warning("Please enter some text in the box above first!")
-
+        # Split text into individual sentences
+        sentences = [s.strip() for s in re.split(r'[.!?]\s+', topic_info) if len(s.strip().split()) > 4]
+        
+        # Collect all significant words from text to use as options
+        all_words = list(set(re.findall(r'\b[A-Za-z]{4,}\b', topic_info)))
+        
+        if len(sentences) == 0:
+            st.error("Please enter a longer text with full sentences.")
+        else:
+            st.success("🎯 Questions Created directly from your notes:")
+            
+            # Loop up to 10 questions (or as many sentences as available)
+            num_q = min(10, len(sentences))
+            for i in range(num_q):
+                sentence = sentences[i]
+                words_in_sentence = [w for w in re.findall(r'\b[A-Za-z]{4,}\b', sentence) if w.lower() not in ['this', 'that', 'with', 'from', 'have', 'been', 'which', 'they', 'your', 'more']]
+                
+                if words_in_sentence:
+                    target_word = words_in_sentence[0] # Pick a key word to test
+                    question_text = sentence.replace(target_word, "_______")
+                    
+                    # Create choices containing the correct word + random distractor words
+                    wrong_choices = [w for w in all_words if w.lower() != target_word.lower()]
+                    random.shuffle(wrong_choices)
+                    choices = wrong_choices[:3] + [target_word]
+                    random.shuffle(choices) # Shuffle order of options
+                    
+                    st.markdown(f"**Q{i+1}: Fill in the blank based on your notes:**")
+                    st.write(f"*{question_text}*")
+                    
+                    user_ans = st.radio(
+                        f"Select answer for Q{i+1}:", 
+                        [f"A) {choices[0]}", f"B) {choices[1]}", f"C) {choices[2]}", f"D) {choices[3]}"], 
+                        key=f"pure_mcq_{i}"
+                    )
+                    st.write("---")
